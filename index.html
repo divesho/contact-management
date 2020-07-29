@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Contacts</title>
+    <style>
+      table {
+        padding: 10px;
+        border: 1px solid gray;
+      }
+      tr, td, th {
+        padding: 10px;
+        border: 1px solid gray;
+      }
+      td, th {
+        min-width: 150px;
+      }
+      .sno {
+        min-width: 50px;
+      }
+      input {
+        padding: 5px 10px;
+      }
+      button {
+        padding: 5px 10px;
+        min-width: 70px;
+      }
+      .marRight {
+        margin-right: 20px;
+      }
+      .choices .actions {
+        display: none;
+      }
+      .floating {
+        position: fixed;
+        bottom: 100px;
+        right: 100px;
+      }
+      .floating button {
+        display: block;
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Contacts</h1>
+
+    <table>
+      <thead>
+        <!-- // fn url email n tel -->
+        <tr>
+          <th class="sno">S.NO.</th>
+          <th>Name</th>
+          <th>Number</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="floating">
+      <button onclick="ajaxCall('contacts')">Load old contacts</button>
+      <button onclick="ajaxCall('latestContacts')">Load new contacts</button>
+      <button onclick="newContactFile()">Create new contact file</button>
+      <button onclick="addNewContact()">Add New Conatct</button>  
+      <button onclick="saveAll()">SAVE Contacts</button>
+      <button onclick="scrollto('top')">Scroll Top</button>
+      <button onclick="scrollto('bottom')">Scroll Bottom</button>
+    </div>
+
+
+    <script src="./jquery.min.js"></script>
+    <script>
+
+      let G_JSON = {};
+
+      $(function(){
+        ajaxCall('contacts');
+      })
+
+      function ajaxCall(url) {
+
+        G_JSON = {};
+        $.ajax({
+          url: url,
+          success: function(res) {
+
+            res.map(item => {
+              G_JSON[item.id] = item;
+            });
+            
+            loadContactRows()
+          },
+          error: function(error) {
+            console.log(error);
+          }
+        })
+      }
+
+      function loadContactRows() {
+        
+        var str = '';
+        let i = 0;
+
+        for(let key in G_JSON) {
+          let o = G_JSON[key];
+
+          str += `<tr>
+                    <td class="sno">${++i}</td>
+                    <td>
+                      <div class="static${o.id}" id="staticFname${o.id}">${o.name}</div>
+                      <div class="edit${o.id}" style="display:none"><input type="text" value="${o.name}" id="fname${o.id}" /></div>
+                    </td>
+                    <td>
+                      <div class="static${o.id}" id="staticTel${o.id}">${o.number}</div>
+                      <div class="edit${o.id}" style="display:none"><input type="text" value="${o.number}" id="tel${o.id}" /></div>
+                    </td>
+                    <td>
+                      <div class="static${o.id}">
+                        <button onclick="editC('${o.id}')">Edit</button>
+                        <button onclick="deleteC('${o.id}')">Delete</button>
+                      </div>
+                      <div class="edit${o.id}"  style="display:none">
+                        <button onclick="saveC('${o.id}')">Save</button>
+                        <button onclick="cancelC('${o.id}')">Cancel</button>
+                      </div>
+                    </td>
+                  </tr>`;
+        }
+        $("#tbody").html(str);
+        
+      }
+
+      function newContactFile() {
+
+        G_JSON = {};
+        $("#tbody").html('');
+      }
+
+      function deleteC(index) {
+        delete G_JSON[index];
+        loadContactRows();
+      }
+
+      function editC(index) {
+        $(`.edit${index}`).show();
+        $(`.static${index}`).hide();
+      }
+
+      function saveC(index) {
+        let fname = $(`#fname${index}`).val();
+        let num = $(`#tel${index}`).val();
+
+        if(!G_JSON[index]) {
+          G_JSON[index] = {name: '', number: ''};
+        }
+
+        G_JSON[index].name = fname;
+        G_JSON[index].number = num;
+
+        $(`#staticFname${index}`).text(fname);
+        $(`#staticTel${index}`).text(num);
+
+        $(`.edit${index}`).hide();
+        $(`.static${index}`).show();
+      }
+
+      function cancelC(index) {
+
+        if(!G_JSON[index]) {
+          return $(`#row${index}`).remove();
+        }
+
+        o = G_JSON[index];
+        $(`#fname${index}`).val(o.name);
+        $(`#tel${index}`).val(o.number);
+
+        $(`.edit${index}`).hide();
+        $(`.static${index}`).show();
+      }
+
+      function saveAll() {
+
+        var vcfStr = '';
+
+        for(let key in G_JSON) {
+          let o = G_JSON[key];
+
+          vcfStr += `BEGIN:VCARD\nVERSION:3.0\nN:${o.name};;;;\nFN:${o.name}\nTEL;TYPE=CELL:${o.number}\nEND:VCARD\n`;
+        }
+
+        vcfStr = vcfStr.replace(/\\n$/, '');
+
+        $.ajax({
+          url: 'contacts',
+          type: 'POST',
+          data: { value: vcfStr },
+          success: function(result) {
+            alert('the request was successfully sent to the server');
+          },
+          error: function(err) {
+            console.log('err');
+          }
+        });
+      }
+
+      function toggleFunc(type) {
+
+        if(type === 'existing') {
+          $(`#new`).hide('slow');
+        }
+        if(type === 'new') {
+          $(`#existing`).hide('slow');
+        }
+
+        $(`#${type}`).toggle('display');
+
+        G_JSON = {};
+        $("#tbody").html('');
+      }
+
+      function addNewContact() {
+
+        let id = (new Date()).getTime();
+
+        let str = `
+            <tr id="row${id}">
+              <td class="sno"></td>
+              <td>
+                <div class="static${id}" id="staticFname${id}" style="display:none"></div>
+                <div class="edit${id}" ><input type="text" value="" id="fname${id}" /></div>
+              </td>
+              <td>
+                <div class="static${id}" id="staticTel${id}" style="display:none"></div>
+                <div class="edit${id}"><input type="text" value="" id="tel${id}" /></div>
+              </td>
+              <td>
+                <div class="static${id}" style="display:none">
+                  <button onclick="editC('${id}')">Edit</button>
+                  <button onclick="deleteC('${id}')">Delete</button>
+                </div>
+                <div class="edit${id}">
+                  <button onclick="saveC('${id}')">Save</button>
+                  <button onclick="cancelC('${id}')">Cancel</button>
+                </div>
+              </td>
+            </tr>
+        `;
+
+        $('#tbody').append(str);
+        $("html, body").animate({ scrollTop: $(document).height() }, 500);
+      }
+
+      function scrollto(type) {
+        if(type === 'bottom') {
+          $("html, body").animate({ scrollTop: $(document).height() }, 500);
+        } else {
+          $("html, body").animate({ scrollTop: 0 }, 500);
+        }
+      }
+
+
+
+    </script>
+  </body>
+</html>
